@@ -1,0 +1,178 @@
+---
+title: "assignmet 12"
+author: "Alexander Dyakin"
+date: "2023-12-04"
+output: pdf_document
+---
+//----------------------------------
+name:Alexander Dyakin
+ID: 7828027
+assignment: 12
+section: B01
+//----------------------------------
+about: the assignmet12.Rmd is a program that computes the SVD of an image coolAlex.bmp. then using the native SVD function,
+compresses the image down using 30 singular values and returns the resulting image aswell as the diffrence in the number 
+of pixel.
+//-----------------------------------
+important:
+	submision folder doesent allow for .bmp files so coolAlex.bmp isnt there in submition folder
+download:
+	to downlaod go to https://github.com/ablepacifist/math_2740/ and download coolAlex.bmp else see remark
+how to run:
+	make sure assignmet12.Rmd and coolAlex.bmp are in the same directory. Should run nativly on rStudio.
+
+remark:
+	feel free to ignore running the program and give the defult grade. the program takes a minute to run and downloading 
+	that is way too much work for this assignment
+	THANKS FOR THE CLASS! 
+	//--------------------------------------------------------
+In this I will take a image from my high school graduation and use svd compression to reduce the size of the image and compare the diffrence in quality
+
+need these libraries to view the image
+```{r}
+if(!require("pixmap"))
+    install.packages("pixmap")
+
+if(!require("bmp"))
+    install.packages("bmp")
+
+if(!require("devtools"))
+  
+    install.packages("devtools")
+library("devtools")
+
+```
+```{r}
+path ="C:\\Downloads\\"
+name = "coolAlex.bmp"
+###download.file(url ="https://github.com/ablepacifist/math_2740.git/coolAlex.bmp",destfile = path)
+devtools::install_github("ablepacifist/math_2740")
+
+```
+```{r}
+coolImage = read.bmp("coolAlex.bmp")
+dim(coolImage)
+## now use pixmap to graph the image:
+coolImage = pixmapGrey(coolImage)
+print("this may take a minute...")
+plot(coolImage)
+```
+that took WAAAAYYYY to long
+lets find the eigen values for the matrix of grey pixels
+```{r}
+#let M be the matrix of all grey values of each pixel
+M = coolImage@grey
+## first find M transpose M
+MTM = t(M) %*% M
+## use eigen to find eigen values of the matrx
+eigen = eigen(MTM)
+```
+check how many eigen values we found and order them from largest to smallest
+```{r}
+print("number of eigen values:")
+print(length(eigen$values))
+orderedEigen = order(eigen$values,decreasing = TRUE)
+orderedEigen = eigen$values[orderedEigen]
+```
+ a lot of eigen values are close to zero so lets save time and recorces and just make them zero
+```{r}
+orderedEigen[which(orderedEigen < 1e-13)] =0
+```
+make sure all eigen values are positive. then see how many eigen values there are
+```{r}
+index = which(eigen$values>1e-13)
+posEigenOrdered = order(eigen$values[index],decreasing = TRUE)
+index = index[posEigenOrdered]
+print("number of eigen values:")
+print(length(posEigenOrdered))
+```
+now to use the eigen values to find the sigular values by taking their sqrt
+```{r}
+singularValues = sqrt(eigen$values[posEigenOrdered])
+print("number of singular values")
+length(singularValues)
+```
+set diagonal vector D to be the diagonal of the singular values. set V to be the vector of the normalized eigen vectors
+```{r}
+D = diag(singularValues)
+V = eigen$vectors[index,index]
+```
+compute the SVD
+```{r}
+c1 = colSums(V)
+c2 = matrix(rep(1,dim(V)[1]),nr=1)
+sum(abs(c1-c2))
+
+for (i in 1:dim(V)[1]) {
+    V[,i] = V[,i]/c1[i]
+}
+##colSums(V)
+```
+function that will allow us to use the SVD to change the quality of the image
+```{r}
+compress_image = function(image, n) {
+    # Given an image svd 
+    # use only the first n singular values
+  out = list() ## return type of list
+  ##make sure the dimensions match for the number of singular values possible
+    if (n > length(image$d)) {
+      ## n is too large, set it to the max possible
+        n = length(image$d)
+    }
+  ## get matrcies D V and V from native svd result
+    d_tmp = image$d[1:n]
+    u_tmp = image$u[,1:n]
+    v_tmp = image$v[,1:n]
+    # First, compute the resulting image
+    out$img = mat.or.vec(nr = dim(image$u)[1], nc = dim(image$v)[1])
+    for (i in 1:n) {
+        out$img = out$img + d_tmp[i] * u_tmp[,i] %*% t(v_tmp[,i]) 
+    }
+    # remove any values that are less than 0 because we cant have negitive color since this is just black and white
+    if (min(min(out$img)) < 0 ) {
+      ## replace those values with the "opposite" of that value
+        out$img = out$img - min(min(out$img))
+    }
+    out$img = out$img / max(max(out$img))
+    # Store some information: number of points needed and percentage of the original required
+    # number of original pixels in the image
+    out$numOriginal = dim(image$u)[1] * dim(image$v)[2]
+    # number of pixels used after compression
+    out$numCompressed = length(d_tmp) + dim(u_tmp)[1]*dim(u_tmp)[2] + dim(v_tmp)[1]*dim(v_tmp)[2] 
+    out$pct_of_original = out$numCompressed / out$numOriginal * 100
+    # Return the result
+    return(out)
+}
+```
+use native SVD function to find the svd. then find the image so its less detailed and takes less space
+```{r}
+print("this may take a minute...")
+my_SVD = svd(M)
+
+```
+ compress the image and see how much space we saved
+```{r}
+newImage = coolImage
+compressed = compress_image(my_SVD,30)
+newImage@grey = compressed$img
+plot(newImage)
+print("number of pixels in the original image:")
+compressed$numOriginal
+print("number of pixels used in the compressed image:")
+compressed$numCompressed
+```
+now lets try with a really small number of singular values
+```{r}
+newImage = coolImage
+compressed = compress_image(my_SVD,9)
+newImage@grey = compressed$img
+plot(newImage)
+print("number of pixels in the original image:")
+compressed$numOriginal
+print("number of pixels used in the compressed image:")
+compressed$numCompressed
+```
+look at that hansom little potato man
+P.S my senior quote under that image was:
+"dont you dare use that as your senior photo" -mom
+i was on the front page of reddit for that :)
